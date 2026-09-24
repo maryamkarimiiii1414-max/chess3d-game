@@ -1,0 +1,52 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack project
+        run: |
+          unzip -q chess3d-apk.zip
+          cp -r chess3d-apk/. .
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install npm packages
+        run: npm install
+
+      - name: Create the Android project
+        run: npx cap add android
+
+      - name: Add Tapsell, icons and manifest changes
+        run: python3 scripts/patch_android.py
+
+      - name: Copy the game into the app
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess3d-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
