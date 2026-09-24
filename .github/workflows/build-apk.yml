@@ -8,14 +8,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Unpack project
         run: |
-          unzip -q chess3d-apk.zip
+          ls -la
+          for z in *.zip; do unzip -q -o "$z"; done
           cp -r chess3d-apk/. .
 
       - uses: actions/setup-node@v4
