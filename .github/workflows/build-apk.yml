@@ -8,12 +8,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Unpack project
         run: |
-          ls -la
           for z in *.zip; do unzip -q -o "$z"; done
           cp -r chess3d-apk/. .
 
@@ -44,8 +45,34 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
+      - name: Build release APK (unsigned)
+        if: env.KEYSTORE_B64 != ''
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Sign release APK
+        if: env.KEYSTORE_B64 != ''
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "$KEYSTORE_B64" | base64 -d > release.jks
+          "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks release.jks --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass pass:"$KS_PASS" --key-pass pass:"$KS_PASS" \
+            --out chess3d-release.apk aligned.apk
+          rm -f release.jks
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: chess3d-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload signed release APK
+        if: env.KEYSTORE_B64 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess3d-release-apk
+          path: chess3d-release.apk
