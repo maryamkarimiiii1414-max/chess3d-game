@@ -15,8 +15,31 @@ jobs:
 
       - name: Unpack project
         run: |
-          for z in *.zip; do unzip -q -o "$z"; done
-          cp -r chess3d-apk/. .
+          set -e
+          echo "== files in repo =="
+          find . -maxdepth 3 -not -path './.git/*' | sort
+          for round in 1 2 3; do
+            found=0
+            while IFS= read -r z; do
+              echo "unzipping $z"
+              unzip -q -o "$z" -d "$(dirname "$z")"
+              rm -f "$z"
+              found=1
+            done < <(find . -name '*.zip' -not -path './.git/*' -not -path '*/node_modules/*')
+            [ "$found" = 0 ] && break
+          done
+          CFG=$(find . -name capacitor.config.json -not -path './.git/*' -not -path '*/node_modules/*' -not -path './android/*' | head -1)
+          if [ -z "$CFG" ]; then
+            echo "ERROR: capacitor.config.json not found. Upload chess3d-apk-3.zip to the repo."
+            exit 1
+          fi
+          SRC=$(dirname "$CFG")
+          echo "project folder: $SRC"
+          if [ "$SRC" != "." ]; then cp -r "$SRC"/. .; fi
+          test -f www/index.html
+          test -f scripts/patch_android.py
+          test -f native/TapsellBridge.java
+          echo "project OK"
 
       - uses: actions/setup-node@v4
         with:
